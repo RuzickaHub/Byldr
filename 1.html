@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Byldr Engine - Professional UI</title>
+    <style>
+        :root { 
+            --accent: #007aff; 
+            --bg-ui: rgba(28, 28, 30, 0.85);
+            --bg-btn: rgba(255, 255, 255, 0.1);
+            --text: #ffffff;
+            --danger: #ff3b30;
+            --border: rgba(255, 255, 255, 0.15);
+        }
+
+        body.light-mode {
+            --bg-ui: rgba(242, 242, 247, 0.85);
+            --bg-btn: rgba(0, 0, 0, 0.05);
+            --text: #1c1c1e;
+            --border: rgba(0, 0, 0, 0.1);
+        }
+
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; outline: none; }
+        body { 
+            margin: 0; overflow: hidden; background: #1c1c1e; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: none; user-select: none;
+        }
+        
+        #ui { position: absolute; inset: 0; pointer-events: none; z-index: 10; display: none; }
+        
+        .overlay { 
+            position: fixed; inset: 0; background: #1c1c1e; z-index: 100; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff;
+            text-align: center; padding: 20px;
+        }
+
+        .panel-container {
+            position: absolute;
+            top: 20px; left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .panel {
+            background: var(--bg-ui); backdrop-filter: blur(20px);
+            padding: 6px; border-radius: 18px;
+            border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            pointer-events: auto;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        }
+
+        .center-panel { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); }
+        .right-panel { position: absolute; top: 20px; right: 20px; }
+
+        .tool-btn {
+            width: 42px; height: 42px; border-radius: 12px; border: none;
+            background: var(--bg-btn); color: var(--text); font-size: 18px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            fill: currentColor; transition: all 0.2s;
+            position: relative;
+        }
+        .tool-btn svg { width: 22px; height: 22px; }
+        .tool-btn:active { transform: scale(0.9); }
+        .tool-btn.active { background: var(--accent); color: #fff; }
+        .tool-btn.erase-mode.active { background: var(--danger); color: #fff; }
+        .tool-btn:disabled { opacity: 0.3; cursor: default; }
+
+        #palette-row {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+            pointer-events: none;
+            visibility: hidden;
+            max-width: fit-content;
+        }
+        #palette-row.open {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        .color-dot {
+            min-width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+            cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+        }
+        .color-dot.active { border-color: var(--text); transform: scale(1.1); }
+
+        #joy-container { position: absolute; bottom: 40px; left: 40px; width: 100px; height: 100px; pointer-events: auto; }
+        #jump-wrapper { position: absolute; bottom: 40px; right: 40px; pointer-events: auto; }
+        
+        .jump-btn {
+            width: 70px; height: 70px; border-radius: 35px;
+            background: var(--bg-ui); border: 1px solid var(--border);
+            color: var(--text); display: flex; align-items: center; justify-content: center;
+            fill: currentColor;
+        }
+        .jump-btn svg { width: 32px; height: 32px; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 4px; height: 4px; background: rgba(255,255,255,0.8); border-radius: 50%;
+            z-index: 5;
+        }
+
+        .stats { font-size: 10px; font-weight: bold; margin-left: 8px; color: var(--text); opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="overlay">
+        <h1>BYLDR ENGINE</h1>
+        <p style="opacity: 0.6; margin-bottom: 2rem;">🧱 Dynamický rádius mřížky</p>
+        <button id="start-btn" class="tool-btn" style="width: 200px; height: 56px; background: var(--accent); color: #fff; font-weight: bold; border-radius: 28px;">ZAHÁJIT</button>
+    </div>
+
+    <div id="ui">
+        <div class="panel-container">
+            <div class="panel">
+                <button id="btn-theme" class="tool-btn" title="Téma">
+                    <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-3.03 0-5.5-2.47-5.5-5.5 0-1.82.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+                </button>
+                <button id="btn-palette-toggle" class="tool-btn" title="Barvy">
+                    <svg viewBox="0 0 24 24"><path d="M17.58,3.08L15.42,5.24C15.15,5.5 15.15,5.92 15.42,6.19L17.81,8.58C18.07,8.85 18.5,8.85 18.76,8.58L20.92,6.42C21.18,6.15 21.18,5.73 20.92,5.47L18.53,3.08C18.27,2.82 17.85,2.82 17.58,3.08M14,6.66L6,14.66V18H9.34L17.34,10L14,6.66Z"/></svg>
+                </button>
+                <div class="stats"><span id="count">0</span> DÍLKŮ</div>
+            </div>
+            <div id="palette-row" class="panel"></div>
+        </div>
+
+        <div class="panel center-panel">
+            <button id="mode-build" class="tool-btn active" title="Stavět">
+                <svg viewBox="0 0 24 24"><path d="M21,16.5C21,16.88 20.79,17.21 20.47,17.38L12.57,21.82C12.41,21.94 12.21,22 12,22C11.79,22 11.59,21.94 11.43,21.82L3.53,17.38C3.21,17.21 3,16.88 3,16.5V7.5C3,7.12 3.21,6.79 3.53,6.62L11.43,2.18C11.59,2.06 11.79,2 12,2C12.21,2 12.41,2.06 12.57,2.18L20.47,6.62C20.79,6.79 21,7.12 21,7.5V16.5M12,4.15L6.04,7.5L12,10.85L17.96,7.5L12,4.15M5,15.91L11,19.29V12.58L5,9.21V15.91M19,15.91V9.21L13,12.58V19.29L19,15.91Z"/></svg>
+            </button>
+            <button id="mode-erase" class="tool-btn erase-mode" title="Smazat">
+                <svg viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19V4M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+            </button>
+        </div>
+
+        <div class="panel right-panel">
+            <button id="btn-undo" class="tool-btn">
+                <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+            </button>
+            <button id="btn-redo" class="tool-btn">
+                <svg viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.06-5.5 7.6-5.5 1.96 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
+            </button>
+        </div>
+
+        <div id="crosshair"></div>
+        <div id="joy-container"></div>
+        <div id="jump-wrapper">
+            <button id="jump-btn" class="jump-btn">
+                <svg viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+
+    <script>
+        // Konfigurace rozměrů (LEGO poměr)
+        const BRICK_W = 1.0;
+        const BRICK_H = 1.2;
+        const PLAYER_EYE_H = 1.8;
+        const STUD_RADIUS = 0.31;
+        const STUD_HEIGHT = 0.15;
+        const COLORS = [0x007aff, 0xff3b30, 0x34c759, 0xffcc00, 0xaf52de, 0xffffff, 0x2c2c2e];
+
+        let scene, camera, renderer, raycaster, clock;
+        let ghost, gridHelper, floor, gridMaterial;
+        let bricks = [];
+        let undoStack = [], redoStack = [];
+
+        const _moveVec = new THREE.Vector3();
+        const _nextPos = new THREE.Vector3();
+        const _rayOrigin = new THREE.Vector2(0, 0);
+        const _tempVec = new THREE.Vector3();
+
+        let state = { 
+            mode: 'BUILD', theme: 'dark', colorIdx: 0, 
+            move: {x:0, y:0}, rot: {y:0, p:0}, vel: new THREE.Vector3(), canJump: false,
+            paletteOpen: false
+        };
+
+        const brickGeo = new THREE.BoxGeometry(BRICK_W, BRICK_H, BRICK_W);
+        const studGeo = new THREE.CylinderGeometry(STUD_RADIUS, STUD_RADIUS, STUD_HEIGHT, 16);
+        const ghostMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.4 });
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1c1c1e);
+            scene.fog = new THREE.Fog(0x1c1c1e, 10, 50);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0.5, PLAYER_EYE_H, 5); 
+            camera.rotation.order = 'YXZ';
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+            sun.position.set(10, 25, 15);
+            sun.castShadow = true;
+            scene.add(sun);
+
+            // Podlaha
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x2c2c2e, roughness: 0.8 });
+            floor = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // DYNAMICKÁ MŘÍŽKA S RÁDIUSEM OKOLO HRÁČE
+            gridMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    uColor: { value: new THREE.Color(0x555555) },
+                    uPlayerPos: { value: new THREE.Vector3() },
+                    uRadius: { value: 8.0 } // Rádius viditelnosti mřížky
+                },
+                transparent: true,
+                vertexShader: `
+                    varying vec3 vPos;
+                    void main() {
+                        vPos = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform vec3 uPlayerPos;
+                    uniform float uRadius;
+                    varying vec3 vPos;
+                    void main() {
+                        float dist = distance(vPos.xz, uPlayerPos.xz);
+                        // Výpočet úbytku mřížky do ztracena (gradient)
+                        float fade = clamp(1.0 - (dist / uRadius), 0.0, 1.0);
+                        fade = pow(fade, 2.5); // Strmější úbytek pro lepší vizuál
+                        
+                        // Generování čar mřížky
+                        // 0.5 offset pro vycentrování čar na rozhraní "snapu" kostek
+                        vec2 grid = abs(fract(vPos.xz) - 0.5) / fwidth(vPos.xz);
+                        float line = min(grid.x, grid.y);
+                        float lineIntensity = 1.0 - smoothstep(0.0, 1.5, line); 
+
+                        if (fade <= 0.001) discard;
+                        
+                        gl_FragColor = vec4(uColor, lineIntensity * fade * 0.6);
+                    }
+                `
+            });
+            const gridPlane = new THREE.Mesh(new THREE.PlaneBufferGeometry(1000, 1000), gridMaterial);
+            gridPlane.rotation.x = -Math.PI / 2;
+            gridPlane.position.y = 0.02; // Mírně nad podlahou proti z-fightingu
+            scene.add(gridPlane);
+
+            raycaster = new THREE.Raycaster();
+            clock = new THREE.Clock();
+
+            // Vizualizace výběru
+            gridHelper = new THREE.LineSegments(
+                new THREE.EdgesGeometry(brickGeo), 
+                new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+            );
+            scene.add(gridHelper);
+
+            updateGhost();
+            setupControls();
+            updateUI();
+            
+            window.addEventListener('resize', onWindowResize);
+            requestAnimationFrame(animate);
+        }
+
+        function createBrickMesh(color, isGhost = false) {
+            const group = new THREE.Group();
+            const mat = isGhost ? ghostMat.clone() : new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.1 });
+            if(isGhost) mat.color.set(color);
+            
+            const body = new THREE.Mesh(brickGeo, mat);
+            if(!isGhost) { 
+                body.castShadow = body.receiveShadow = true; 
+                body.scale.setScalar(0.999);
+            }
+            group.add(body);
+
+            const s = new THREE.Mesh(studGeo, mat);
+            s.position.y = (BRICK_H + STUD_HEIGHT) / 2;
+            if(!isGhost) s.castShadow = s.receiveShadow = true;
+            group.add(s);
+            
+            return group;
+        }
+
+        function isColliding(pos) {
+            const r = 0.4;
+            for (let i = 0; i < bricks.length; i++) {
+                const b = bricks[i].position;
+                if (Math.abs(pos.x - b.x) < r + 0.5 && Math.abs(pos.z - b.z) < r + 0.5) {
+                    const low = b.y - BRICK_H/2;
+                    const high = b.y + BRICK_H/2;
+                    if (pos.y - PLAYER_EYE_H < high && pos.y > low) return true;
+                }
+            }
+            return false;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            
+            camera.rotation.set(state.rot.p, state.rot.y, 0);
+
+            // Pohyb
+            if (state.move.x !== 0 || state.move.y !== 0) {
+                _moveVec.set(state.move.x, 0, -state.move.y).applyAxisAngle(_tempVec.set(0,1,0), state.rot.y).multiplyScalar(7 * dt);
+                _nextPos.copy(camera.position).add(_tempVec.set(_moveVec.x, 0, 0));
+                if (!isColliding(_nextPos)) camera.position.x = _nextPos.x;
+                _nextPos.copy(camera.position).add(_tempVec.set(0, 0, _moveVec.z));
+                if (!isColliding(_nextPos)) camera.position.z = _nextPos.z;
+            }
+
+            // Aktualizace pozice hráče pro shader mřížky
+            if(gridMaterial) gridMaterial.uniforms.uPlayerPos.value.copy(camera.position);
+
+            // Gravitace
+            state.vel.y -= 26 * dt;
+            camera.position.y += state.vel.y * dt;
+            let grounded = false;
+
+            if (camera.position.y < PLAYER_EYE_H) { 
+                camera.position.y = PLAYER_EYE_H; 
+                state.vel.y = 0; 
+                grounded = true; 
+            } else {
+                for (let i = 0; i < bricks.length; i++) {
+                    const b = bricks[i].position;
+                    if (Math.abs(camera.position.x - b.x) < 0.6 && Math.abs(camera.position.z - b.z) < 0.6) {
+                        const topY = b.y + BRICK_H / 2 + PLAYER_EYE_H;
+                        if (camera.position.y < topY && camera.position.y > topY - 0.6) {
+                            camera.position.y = topY; 
+                            state.vel.y = 0; 
+                            grounded = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            state.canJump = grounded;
+
+            // Raycasting
+            raycaster.setFromCamera(_rayOrigin, camera);
+            if (state.mode === 'ERASE') {
+                const hits = raycaster.intersectObjects(bricks, true);
+                if (hits.length > 0) {
+                    let target = hits[0].object;
+                    while(target.parent && target.parent !== scene) target = target.parent;
+                    gridHelper.visible = true;
+                    gridHelper.position.copy(target.position);
+                    gridHelper.material.color.set(0xff3b30);
+                    ghost.visible = false;
+                } else gridHelper.visible = false;
+            } else {
+                const hits = raycaster.intersectObjects([floor, ...bricks], true);
+                if (hits.length > 0) {
+                    const hit = hits[0];
+                    const norm = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+                    _tempVec.copy(hit.point).add(norm.multiplyScalar(0.05));
+                    
+                    const gx = Math.floor(_tempVec.x) + 0.5;
+                    const gz = Math.floor(_tempVec.z) + 0.5;
+                    const gy = Math.floor(Math.max(0, _tempVec.y) / BRICK_H) * BRICK_H + (BRICK_H / 2);
+                    
+                    ghost.visible = true;
+                    ghost.position.set(gx, gy, gz);
+                    gridHelper.visible = true;
+                    gridHelper.position.set(gx, gy, gz);
+                    gridHelper.material.color.set(0xffffff);
+                } else {
+                    ghost.visible = false;
+                    gridHelper.visible = false;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function handleInteraction() {
+            if (state.mode === 'ERASE') {
+                raycaster.setFromCamera(_rayOrigin, camera);
+                const hits = raycaster.intersectObjects(bricks, true);
+                if(hits.length > 0) {
+                    let target = hits[0].object;
+                    while(target.parent && target.parent !== scene) target = target.parent;
+                    executeAction({ type: 'REMOVE', obj: target });
+                }
+            } else if (ghost.visible) {
+                const b = createBrickMesh(COLORS[state.colorIdx]);
+                b.position.copy(ghost.position);
+                executeAction({ type: 'ADD', obj: b });
+            }
+        }
+
+        function executeAction(action) {
+            if (action.type === 'ADD') { 
+                scene.add(action.obj); 
+                bricks.push(action.obj); 
+            } else { 
+                scene.remove(action.obj); 
+                bricks = bricks.filter(b => b !== action.obj); 
+            }
+            undoStack.push(action); 
+            redoStack = []; 
+            updateUI();
+        }
+
+        function undo() {
+            const action = undoStack.pop();
+            if (!action) return;
+            if (action.type === 'ADD') { 
+                scene.remove(action.obj); 
+                bricks = bricks.filter(b => b !== action.obj); 
+            } else { 
+                scene.add(action.obj); 
+                bricks.push(action.obj); 
+            }
+            redoStack.push(action); 
+            updateUI();
+        }
+
+        function redo() {
+            const action = redoStack.pop();
+            if (!action) return;
+            if (action.type === 'ADD') { 
+                scene.add(action.obj); 
+                bricks.push(action.obj); 
+            } else { 
+                scene.remove(action.obj); 
+                bricks = bricks.filter(b => b !== action.obj); 
+            }
+            undoStack.push(action); 
+            updateUI();
+        }
+
+        function updateGhost() {
+            if(ghost) scene.remove(ghost);
+            ghost = createBrickMesh(COLORS[state.colorIdx], true);
+            scene.add(ghost);
+        }
+
+        function setupControls() {
+            const palette = document.getElementById('palette-row');
+            COLORS.forEach((c, idx) => {
+                const dot = document.createElement('div');
+                dot.className = `color-dot ${idx === 0 ? 'active' : ''}`;
+                dot.style.background = '#' + c.toString(16).padStart(6, '0');
+                dot.onclick = (e) => {
+                    e.stopPropagation();
+                    state.colorIdx = idx;
+                    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+                    dot.classList.add('active');
+                    updateGhost();
+                };
+                palette.appendChild(dot);
+            });
+
+            document.getElementById('btn-palette-toggle').onclick = (e) => {
+                e.stopPropagation();
+                state.paletteOpen = !state.paletteOpen;
+                document.getElementById('palette-row').classList.toggle('open', state.paletteOpen);
+                document.getElementById('btn-palette-toggle').classList.toggle('active', state.paletteOpen);
+            };
+
+            nipplejs.create({ zone: document.getElementById('joy-container'), mode: 'static', position: {left:'50px', bottom:'50px'}, size: 80 })
+                .on('move', (e, d) => { state.move.x = d.vector.x; state.move.y = d.vector.y; })
+                .on('end', () => { state.move.x = 0; state.move.y = 0; });
+
+            let lx, ly, isDragging = false, dragMoved = 0;
+            const handleStart = e => {
+                if(e.target.closest('.panel, #joy-container, .jump-btn')) return;
+                isDragging = true; dragMoved = 0;
+                const touch = e.touches ? e.touches[0] : e;
+                lx = touch.pageX; ly = touch.pageY;
+            };
+            const handleMove = e => {
+                if(!isDragging) return;
+                const touch = e.touches ? e.touches[0] : e;
+                state.rot.y -= (touch.pageX - lx) * 0.005;
+                state.rot.p = Math.max(-1.4, Math.min(1.4, state.rot.p - (touch.pageY - ly) * 0.005));
+                dragMoved++; lx = touch.pageX; ly = touch.pageY;
+            };
+            const handleEnd = () => { 
+                if(isDragging && dragMoved < 5) handleInteraction(); 
+                isDragging = false; 
+            };
+
+            ['touchstart', 'mousedown'].forEach(ev => window.addEventListener(ev, handleStart));
+            ['touchmove', 'mousemove'].forEach(ev => window.addEventListener(ev, handleMove));
+            ['touchend', 'mouseup'].forEach(ev => window.addEventListener(ev, handleEnd));
+
+            document.getElementById('mode-build').onclick = () => { state.mode = 'BUILD'; updateUI(); };
+            document.getElementById('mode-erase').onclick = () => { state.mode = 'ERASE'; updateUI(); };
+            document.getElementById('btn-undo').onclick = undo;
+            document.getElementById('btn-redo').onclick = redo;
+            document.getElementById('jump-btn').onclick = () => { if(state.canJump) state.vel.y = 10; };
+            
+            document.getElementById('btn-theme').onclick = () => {
+                state.theme = state.theme === 'dark' ? 'light' : 'dark';
+                document.body.classList.toggle('light-mode');
+                const isDark = state.theme === 'dark';
+                scene.background.set(isDark ? 0x1c1c1e : 0xf2f2f7);
+                scene.fog.color.set(isDark ? 0x1c1c1e : 0xf2f2f7);
+                floor.material.color.set(isDark ? 0x2c2c2e : 0xe5e5ea);
+                if(gridMaterial) gridMaterial.uniforms.uColor.value.set(isDark ? 0x555555 : 0xbbbbbb);
+            };
+        }
+
+        function updateUI() {
+            document.getElementById('mode-build').classList.toggle('active', state.mode === 'BUILD');
+            document.getElementById('mode-erase').classList.toggle('active', state.mode === 'ERASE');
+            document.getElementById('btn-undo').disabled = undoStack.length === 0;
+            document.getElementById('btn-redo').disabled = redoStack.length === 0;
+            document.getElementById('count').innerText = bricks.length;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        document.getElementById('start-btn').onclick = () => {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            init();
+        };
+    </script>
+</body>
+</html>
+
